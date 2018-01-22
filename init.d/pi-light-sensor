@@ -1,0 +1,93 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          pi-light-sensor
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Reads light from sensor
+# Description:       Reads light from sensor and warns when light is lit
+### END INIT INFO
+# -*- coding: utf-8 -*-
+# Debian init.d script for D-BUS
+# Copyright © 2003 Colin Walters <walters@debian.org>
+# Copyright © 2005 Sjoerd Simons <sjoerd@debian.org>
+
+set -e
+
+DAEMON=/home/pi/pi-light-sensor
+NAME=pi-light-sensor
+DAEMONUSER=root
+PIDDIR=/var/run/pi-light-sensor
+PIDFILE=$PIDDIR/pid
+PARAMS="-b https://maker.ifttt.com/trigger/pi_started/with/key/[your-key] -n https://maker.ifttt.com/trigger/led_is_on/with/key/[your-key] -r https://maker.ifttt.com/trigger/led_is_off/with/key/[your-key] -g 6 -t 80 -c -z 1"
+DESC="PI light sensor"
+9
+test -x $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+# Source defaults file; edit that file to configure this script.
+
+start_it_up()
+{
+  if [ ! -d $PIDDIR ]; then
+    mkdir -p $PIDDIR
+    chown $DAEMONUSER $PIDDIR
+    chgrp $DAEMONUSER $PIDDIR
+  fi
+
+  if [ -e $PIDFILE ]; then
+    if $0 status > /dev/null ; then
+      log_success_msg "$DESC already started; not starting."
+      return
+    else
+      log_success_msg "Removing stale PID file $PIDFILE."
+      rm -f $PIDFILE
+    fi
+  else
+        log_success_msg "No PID found, good!"
+  fi
+
+  log_daemon_msg "Starting $DESC" "$NAME ${DAEMON}"
+  nohup ${DAEMON} ${PARAMS} >/dev/null 2>&1 &
+       RETVAL=$?
+       PID=$!
+       echo $PID > ${PIDFILE}
+  log_end_msg $?
+}
+
+shut_it_down()
+{
+  log_daemon_msg "Stopping $DESC" "$NAME"
+
+  if [[ -f ${PIDFILE} ]]; then
+     kill -9 `cat ${PIDFILE}`
+  fi
+
+  # We no longer include these arguments so that start-stop-daemon
+  # can do its job even given that we may have been upgraded.
+  # We rely on the pidfile being sanely managed
+  # --exec $DAEMON -- --system $PARAMS
+  log_end_msg $?
+  rm -f $PIDFILE
+}
+
+case "$1" in
+  start)
+    start_it_up
+  ;;
+  stop)
+    shut_it_down
+  ;;
+  restart)
+    shut_it_down
+    start_it_up
+  ;;
+  status)
+    status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $?
+    ;;
+  *)
+    echo "Usage: /etc/init.d/$NAME {start|stop|reload|restart|force-reload|status}" >&2
+    exit 2
+  ;;
+esac
+
